@@ -1,0 +1,197 @@
+╔════════════════════════════════════════════════════════════════╗
+║  🌾 Rice Disease Detection & Chatbot - RAG Service            ║
+║  Quick Start Guide                                            ║
+╚════════════════════════════════════════════════════════════════╝
+
+📋 PREREQUISITES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Python 3.8 or higher
+✓ OpenAI API key (from https://platform.openai.com/api-keys)
+
+🚀 SETUP STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: Navigate to the directory
+─────────────────────────────────
+cd /home/likhon/Programming/FYDP/rag_service
+
+Step 2: Run the automated setup (Recommended)
+──────────────────────────────────────────────
+./setup.sh
+
+OR manually:
+───────────
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+Step 3: Configure OpenAI API Key
+────────────────────────────────
+1. Get your API key from: https://platform.openai.com/api-keys
+2. Edit the .env file:
+   nano .env
+   
+3. Replace this line:
+   OPENAI_API_KEY=your_openai_api_key_here
+   
+   With your actual key:
+   OPENAI_API_KEY=sk-proj-abc123xyz...
+
+4. Save and exit (Ctrl+O, Enter, Ctrl+X in nano)
+
+Step 4: Add Your CSV Files (IMPORTANT!)
+────────────────────────────────────────
+I've created placeholder CSV files for:
+✓ Bacterial_leaf_blight.csv (placeholder)
+✓ Brown_Spot_Grain.csv (✅ your actual file)
+✓ Brown_Spot_Leaf.csv (placeholder)
+✓ Rice_Blast.csv (placeholder)
+✓ Sheath_blight.csv (placeholder)
+✓ Sheath_rot.csv (placeholder)
+
+⚠️  REPLACE the placeholder files with your actual CSV files!
+
+Each CSV should have these columns:
+- Diseases name
+- Category
+- Question
+- Answer
+
+Step 5: Build the FAISS Index
+──────────────────────────────
+python ingest.py
+
+This will:
+- Load all CSV files
+- Create embeddings
+- Build FAISS vector store
+- Save to faiss_index/ directory
+
+Expected output:
+📚 Loading CSV files...
+✅ Total documents loaded: XXX
+🔨 Creating FAISS vector store...
+✅ FAISS index saved
+
+Step 6: Start the Service
+──────────────────────────
+uvicorn main:app --port 4000
+
+Or simply:
+python main.py
+
+Expected output:
+✅ RAG system initialized successfully!
+INFO:     Uvicorn running on http://0.0.0.0:4000
+
+🧪 TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Option 1: Interactive API Documentation
+────────────────────────────────────────
+Open in browser: http://localhost:4000/docs
+
+Option 2: Command Line Test
+────────────────────────────
+# Health check
+curl http://localhost:4000/health
+
+# English query
+curl -X POST http://localhost:4000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are the symptoms of brown spot disease?"}'
+
+# Bangla query
+curl -X POST http://localhost:4000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "ব্রাউন স্পট রোগের লক্ষণ কি?"}'
+
+Option 3: Automated Test Suite
+───────────────────────────────
+python test_api.py
+
+This will run comprehensive tests on all endpoints.
+
+📡 API ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET  /              - Service info
+GET  /health        - Health check
+POST /chat          - Chat with RAG system
+GET  /stats         - Vector store statistics
+GET  /docs          - Interactive API documentation
+
+🔑 ENVIRONMENT VARIABLES (.env)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Required:
+─────────
+OPENAI_API_KEY=sk-proj-your-actual-api-key-here
+
+How to get OpenAI API Key:
+1. Go to https://platform.openai.com/api-keys
+2. Sign in or create an account
+3. Click "Create new secret key"
+4. Give it a name (e.g., "Rice Disease Chatbot")
+5. Copy the key (starts with sk-proj- or sk-)
+6. Paste it in the .env file
+
+⚠️  IMPORTANT: Never commit the .env file to Git!
+
+📁 PROJECT STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+rag_service/
+├── 📄 main.py                      # FastAPI application
+├── 📄 ingest.py                    # Data ingestion script
+├── 📄 requirements.txt             # Python dependencies
+├── 📄 .env                         # Environment variables (API keys)
+├── 📄 .gitignore                   # Git ignore rules
+├── 📄 README.md                    # Detailed documentation
+├── 📄 QUICKSTART.txt              # This file
+├── 🔧 setup.sh                     # Automated setup script
+├── 🧪 test_api.py                  # API test suite
+├── 📊 Bacterial_leaf_blight.csv    # Disease Q&A data
+├── 📊 Brown_Spot_Grain.csv         # Disease Q&A data
+├── 📊 Brown_Spot_Leaf.csv          # Disease Q&A data
+├── 📊 Rice_Blast.csv               # Disease Q&A data
+├── 📊 Sheath_blight.csv            # Disease Q&A data
+├── 📊 Sheath_rot.csv               # Disease Q&A data
+└── 📁 faiss_index/                 # Vector store (created after ingestion)
+
+🛠️ TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Problem: "FAISS index not found"
+Solution: Run `python ingest.py` first
+
+Problem: "OPENAI_API_KEY not found"
+Solution: Add your API key to the .env file
+
+Problem: "Module not found" errors
+Solution: Activate venv and reinstall:
+  source venv/bin/activate
+  pip install -r requirements.txt
+
+Problem: "Port 4000 already in use"
+Solution: Use a different port:
+  uvicorn main:app --port 5000
+
+Problem: Translation not working
+Solution: Check internet connection (googletrans needs it)
+
+Problem: Slow first request
+Solution: Normal - models are loading. Subsequent requests are faster.
+
+📞 SUPPORT & NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ Replace placeholder CSV files with your actual data
+2. ✅ Test with various queries in English and Bangla
+3. ✅ Integrate with your frontend application
+4. ✅ Monitor API usage on OpenAI dashboard
+5. ✅ Consider rate limiting for production
+
+For detailed documentation, see: README.md
+
+🎉 You're all set! Happy coding!
