@@ -148,28 +148,37 @@ def initialize_rag_system():
 
 def call_ollama(model_name: str, prompt: str, max_tokens: int = 512, timeout: int = 60) -> str:
     """
-    Call a locally running Ollama model via its HTTP API.
-    Returns the text content if successful, otherwise raises.
+    Call a locally running Ollama model via its HTTP API and return the text.
+    Handles both single-message and streaming/multi-line JSON responses.
     """
     host = os.getenv("OLLAMA_HOST", "127.0.0.1:11434")
     url = f"http://{host}/api/chat"
     payload = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens
+        "max_tokens": max_tokens,
+        "stream": False 
     }
+
     try:
         resp = requests.post(url, json=payload, timeout=timeout)
         resp.raise_for_status()
-        data = resp.json()
-        # Ollama API returns {'message': {'content': ...}}
-        if isinstance(data, dict):
-            msg = data.get('message')
-            if msg and isinstance(msg, dict) and msg.get('content'):
-                return msg.get('content')
-        return resp.text
+        text = resp.text.strip()
+
+        # Try parsing JSON safely
+        try:
+            data = resp.json()
+            # Ollama API may return {'message': {'content': '...'}}
+            msg = data.get("message")
+            if msg and isinstance(msg, dict):
+                return msg.get("content", text)
+        except Exception:
+            # If JSON parsing fails, fallback to raw text
+            return text
+
     except Exception as e:
         raise RuntimeError(f"Ollama call failed: {e}")
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -248,7 +257,8 @@ async def chat(request: ChatRequest):
 
 
         # Always use Ollama for answer synthesis
-        ollama_model = os.getenv("OLLAMA_MODEL", "llama2")
+        ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:1b")
+
         # Retrieval: get top-k docs
         if vector_store is None:
             raise HTTPException(

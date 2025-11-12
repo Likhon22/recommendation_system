@@ -60,14 +60,14 @@ A FastAPI-based Retrieval-Augmented Generation (RAG) service that provides multi
 
 5. **Add CSV files**:
 
-   Make sure all disease CSV files are in the `rag_service` directory:
+   Make sure all disease CSV files are in the `csv/` folder inside `rag_service`:
 
-   - Bacterial_leaf_blight.csv
-   - Brown_Spot_Grain.csv ✅ (already present)
-   - Brown_Spot_Leaf.csv
-   - Rice_Blast.csv
-   - Sheath_blight.csv
-   - Sheath_rot.csv
+   - csv/Bacterial_leaf_blight.csv
+   - csv/Brown_Spot_Grain.csv
+   - csv/Brown_Spot_Leaf.csv
+   - csv/Rice_Blast.csv
+   - csv/Sheath_blight.csv
+   - csv/Sheath_rot.csv
 
 6. **Create the FAISS vector store**:
 
@@ -143,12 +143,13 @@ rag_service/
 ├── .gitignore                   # Git ignore rules
 ├── README.md                    # This file
 ├── faiss_index/                 # FAISS vector store (created after ingestion)
-├── Bacterial_leaf_blight.csv    # Disease Q&A data
-├── Brown_Spot_Grain.csv         # Disease Q&A data
-├── Brown_Spot_Leaf.csv          # Disease Q&A data
-├── Rice_Blast.csv               # Disease Q&A data
-├── Sheath_blight.csv            # Disease Q&A data
-└── Sheath_rot.csv               # Disease Q&A data
+├── csv/                         # All disease Q&A CSV files
+│   ├── Bacterial_leaf_blight.csv
+│   ├── Brown_Spot_Grain.csv
+│   ├── Brown_Spot_Leaf.csv
+│   ├── Rice_Blast.csv
+│   ├── Sheath_blight.csv
+│   └── Sheath_rot.csv
 ```
 
 ## 🔧 Configuration
@@ -237,14 +238,14 @@ All Python packages are listed in `requirements.txt`. Key packages include:
 
 Create a file named `.env` in the `rag_service/` folder (do NOT commit it).
 
-- `OLLAMA_MODEL` — Model name for Ollama (e.g., llama2, phi3)
+- `OLLAMA_MODEL` — Model name for Ollama (e.g., gemma3:1b, llama2, phi3)
 - `OLLAMA_HOST` — Host/port for Ollama API (default: 127.0.0.1:11434)
 - `RAG_MODE` — 'auto' (default) or 'retrieval' only mode
 
 Example `.env` (DO NOT commit):
 
 ```env
-OLLAMA_MODEL=llama2
+OLLAMA_MODEL=gemma3:1b
 OLLAMA_HOST=127.0.0.1:11434
 RAG_MODE=auto
 ```
@@ -273,7 +274,7 @@ pip install -r requirements.txt
 - Start Ollama: `ollama serve` (usually runs automatically)
 - Pull a model: `ollama pull llama2` (or try `phi3` for low-resource)
 
-4. Add or verify that the CSV files used for ingestion are present in `rag_service/`:
+4. Add or verify that the CSV files used for ingestion are present in the `csv/` folder inside `rag_service/`:
 
 - Bacterial_leaf_blight.csv
 - Brown_Spot_Grain.csv
