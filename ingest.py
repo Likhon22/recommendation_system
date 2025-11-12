@@ -14,7 +14,19 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# List of CSV files to ingest
+# Directory containing CSV files
+CSV_DIR = os.path.join(os.path.dirname(__file__), "csv")
+CSV_FILES = [
+    "Bacterial_leaf_blight.csv",
+    "Brown_Spot_Grain.csv",
+    "Brown_Spot_Leaf.csv",
+    "Rice_Blast.csv",
+    "Sheath_blight.csv",
+    "Sheath_rot.csv"
+]
+
+# Directory containing CSV files
+CSV_DIR = os.path.join(os.path.dirname(__file__), "csv")
 CSV_FILES = [
     "Bacterial_leaf_blight.csv",
     "Brown_Spot_Grain.csv",
@@ -37,7 +49,7 @@ def load_csv_data(csv_files):
     documents = []
     
     for csv_file in csv_files:
-        file_path = os.path.join(os.path.dirname(__file__), csv_file)
+        file_path = os.path.join(CSV_DIR, csv_file)
         
         # Check if file exists
         if not os.path.exists(file_path):
