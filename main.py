@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+import requests
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from deep_translator import GoogleTranslator
@@ -143,50 +143,33 @@ def initialize_rag_system():
         # Fallback for older versions that don't have this parameter
         vector_store = FAISS.load_local(index_path, embeddings)
     
-    # Initialize Google Gemini LLM
-    print("🤖 Initializing Google Gemini LLM...")
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_api_key:
-        raise ValueError("GEMINI_API_KEY not found in environment variables")
-    
-    # Use the full model resource name as required by the API
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",  
-        temperature=0.3,
-        google_api_key=os.getenv("GEMINI_API_KEY")
-    )
-    
-    # Create custom prompt template
-    prompt_template = """You are an expert agricultural assistant specializing in rice diseases. 
-Use the following pieces of context to answer the question about rice diseases. 
-If you don't know the answer based on the context, say "I don't have enough information to answer that question accurately."
-Always provide detailed, helpful, and accurate information based on the context provided.
+    # No Gemini LLM. Only initialize FAISS vector store.
+    print("✅ RAG system initialized successfully (vector store only, no Gemini LLM).")
 
-Context: {context}
-
-Question: {question}
-
-Answer (provide a detailed, helpful response):"""
-
-    PROMPT = PromptTemplate(
-        template=prompt_template,
-        input_variables=["context", "question"]
-    )
-    
-    # Create RetrievalQA chain
-    print("⛓️  Creating QA chain...")
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=vector_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 5}  # Retrieve top 5 most relevant documents
-        ),
-        return_source_documents=False,
-        chain_type_kwargs={"prompt": PROMPT}
-    )
-    
-    print("✅ RAG system initialized successfully!")
+def call_ollama(model_name: str, prompt: str, max_tokens: int = 512, timeout: int = 60) -> str:
+    """
+    Call a locally running Ollama model via its HTTP API.
+    Returns the text content if successful, otherwise raises.
+    """
+    host = os.getenv("OLLAMA_HOST", "127.0.0.1:11434")
+    url = f"http://{host}/api/chat"
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        # Ollama API returns {'message': {'content': ...}}
+        if isinstance(data, dict):
+            msg = data.get('message')
+            if msg and isinstance(msg, dict) and msg.get('content'):
+                return msg.get('content')
+        return resp.text
+    except Exception as e:
+        raise RuntimeError(f"Ollama call failed: {e}")
 
 @app.on_event("startup")
 async def startup_event():
@@ -239,51 +222,104 @@ async def chat(request: ChatRequest):
     Returns:
         ChatResponse with the answer and language information
     """
-    if qa_chain is None:
-        raise HTTPException(
-            status_code=503,
-            detail="RAG system not initialized. Please ensure FAISS index exists and OPENAI_API_KEY is set."
-        )
-    
+    # Allow a retrieval-only fallback when the generative QA chain is not available.
+    # You can also force retrieval-only mode by setting environment variable RAG_MODE=retrieval
+    rag_mode = os.getenv("RAG_MODE", "auto").lower()
+
     try:
         query = request.query.strip()
-        
+
         if not query:
             raise HTTPException(status_code=400, detail="Query cannot be empty")
-        
+
         # Detect language
         detected_lang = detect_language(query)
         print(f"🌐 Detected language: {detected_lang}")
-        
+
         original_query = query
         translated_query = None
-        
+
         # Translate to English if Bangla
         if detected_lang == 'bn':
             print("🔄 Translating Bangla query to English...")
             query = translate_text(query, 'en')
             translated_query = query
             print(f"   Translated: {query}")
-        
-        # Get answer from RAG chain
-        print(f"🔍 Searching for answer...")
-        response = qa_chain.invoke({"query": query})
-        answer = response['result']
-        
+
+
+        # Always use Ollama for answer synthesis
+        ollama_model = os.getenv("OLLAMA_MODEL", "llama2")
+        # Retrieval: get top-k docs
+        if vector_store is None:
+            raise HTTPException(
+                status_code=503,
+                detail="RAG system not initialized and no vector store available. Please run 'python ingest.py' first."
+            )
+        try:
+            retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 5})
+            docs = retriever.get_relevant_documents(query)
+        except Exception:
+            try:
+                docs = vector_store.similarity_search(query, k=5)
+            except Exception as e:
+                print(f"❌ Retrieval error: {e}")
+                raise HTTPException(status_code=500, detail=f"Retrieval error: {e}")
+
+        if not docs:
+            answer = "I don't have enough information to answer that question accurately."
+        else:
+            # Collect unique answers from metadata or page_content
+            seen = set()
+            parts = []
+            for d in docs:
+                ans = None
+                if isinstance(d, dict):
+                    ans = d.get('metadata', {}).get('answer') or d.get('page_content')
+                else:
+                    ans = d.metadata.get('answer') if hasattr(d, 'metadata') and d.metadata else None
+                    if not ans:
+                        ans = getattr(d, 'page_content', None)
+
+                if not ans:
+                    continue
+
+                cleaned = ans.strip()
+                if cleaned and cleaned not in seen:
+                    seen.add(cleaned)
+                    parts.append(cleaned)
+
+            # Build prompt for Ollama
+            context = "\n\n".join(parts[:5])
+            prompt = (
+                "You are an expert agricultural assistant specializing in rice diseases.\n"
+                "Use the following pieces of context to answer the question about rice diseases.\n"
+                "If you don't know the answer based on the context, say \"I don't have enough information to answer that question accurately.\"\n\n"
+                f"Context: {context}\n\nQuestion: {query}\n\nAnswer (provide a detailed, helpful response):"
+            )
+            try:
+                print(f"🤖 Calling Ollama model '{ollama_model}' for generative answer...")
+                answer = call_ollama(ollama_model, prompt, max_tokens=512)
+            except Exception as e:
+                print(f"⚠️ Ollama generation failed: {e} — returning retrieval answer.")
+                answer = "\n\n".join(parts)
+
         # Translate answer back if original was Bangla
-        if detected_lang == 'bn':
-            print("🔄 Translating answer to Bangla...")
-            answer = translate_text(answer, 'bn')
-        
-        print("✅ Response generated successfully!")
-        
+        if detected_lang == 'bn' and answer:
+            try:
+                print("🔄 Translating answer to Bangla...")
+                answer = translate_text(answer, 'bn')
+            except Exception as e:
+                print(f"Translation back to Bangla failed: {e}")
+
+        print("✅ Response generated successfully (fallback/generative completed)!")
+
         return ChatResponse(
             answer=answer,
             language=detected_lang,
             original_query=original_query,
             translated_query=translated_query if detected_lang == 'bn' else None
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

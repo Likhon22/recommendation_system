@@ -5,18 +5,19 @@ A FastAPI-based Retrieval-Augmented Generation (RAG) service that provides multi
 ## 📋 Features
 
 - ✅ **Multilingual Support**: Automatically detects and responds in English or Bangla
-- ✅ **RAG Pipeline**: Uses LangChain, FAISS, and OpenAI GPT-3.5-turbo
+- ✅ **RAG Pipeline**: Uses LangChain, FAISS, and local LLM (Ollama)
 - ✅ **Vector Search**: Efficient similarity search using FAISS
 - ✅ **Disease Coverage**: Includes 6 major rice diseases
 - ✅ **REST API**: FastAPI with automatic OpenAPI documentation
 - ✅ **CORS Enabled**: Ready for frontend integration
+- ✅ **Local Generative Answers**: Uses Ollama (llama2 or other) for answer synthesis — no paid API required
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - Python 3.8 or higher
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- [Ollama](https://ollama.com/) installed and running locally (for generative answers)
 
 ### Installation
 
@@ -41,18 +42,21 @@ A FastAPI-based Retrieval-Augmented Generation (RAG) service that provides multi
 
 4. **Configure environment variables**:
 
-   Edit the `.env` file and add your OpenAI API key:
+   Edit the `.env` file and add the following (optional, defaults shown):
 
    ```env
-   OPENAI_API_KEY=sk-your-actual-api-key-here
+   OLLAMA_MODEL=llama2         # Model to use (default: llama2)
+   OLLAMA_HOST=127.0.0.1:11434 # Ollama API host (default: 127.0.0.1:11434)
+   RAG_MODE=auto               # (optional) 'auto' or 'retrieval' (default: auto)
    ```
 
-   **How to get your OpenAI API key**:
+   **How to install and run Ollama:**
 
-   - Go to https://platform.openai.com/api-keys
-   - Sign in or create an account
-   - Click "Create new secret key"
-   - Copy the key and paste it in the `.env` file
+   - Visit https://ollama.com/download and follow instructions for your OS
+   - Start Ollama: `ollama serve` (usually runs automatically)
+   - Pull a small model: `ollama pull llama2`
+   - Optionally, try other models: `ollama pull phi3` or `ollama pull mistral`
+   - Ollama runs a local API at `http://127.0.0.1:11434`
 
 5. **Add CSV files**:
 
@@ -151,9 +155,13 @@ rag_service/
 
 ### Environment Variables (.env)
 
-| Variable       | Description         | Required |
-| -------------- | ------------------- | -------- |
-| OPENAI_API_KEY | Your OpenAI API key | Yes      |
+| Variable     | Description                               | Required | Default         |
+| ------------ | ----------------------------------------- | -------- | --------------- |
+| OLLAMA_MODEL | Ollama model name (e.g., llama2, phi3)    | No       | llama2          |
+| OLLAMA_HOST  | Ollama API host/port                      | No       | 127.0.0.1:11434 |
+| RAG_MODE     | 'auto' (default) or 'retrieval' only mode | No       | auto            |
+
+**No paid API key required!**
 
 ### CSV File Format
 
@@ -187,37 +195,41 @@ Test the service using the interactive docs at http://localhost:4000/docs or use
 
 Run `python ingest.py` to create the index first.
 
-### Error: "OPENAI_API_KEY not found"
+### Error: Ollama returns 500 or fails
 
-Make sure you've added your API key to the `.env` file.
+- Make sure Ollama is running: `ollama serve`
+- Make sure the model is pulled: `ollama pull llama2`
+- Try a smaller model if you have low RAM/CPU: `ollama pull phi3`
+- Check Ollama logs for details
+- If Ollama fails, the service will fall back to retrieval-only answers
 
 ### Translation not working
 
-The `googletrans` library may need internet connection. Check your network.
+The `deep-translator` library may need internet connection. Check your network.
 
 ### Missing CSV files
 
 The script will skip missing files with a warning. Add all 6 CSV files for complete coverage.
 
-# 🌾 Rice Disease Detection — RAG Service
+# 🌾 Rice Disease Detection — RAG Service (Ollama Edition)
 
-A FastAPI-based Retrieval-Augmented Generation (RAG) service that answers questions about rice diseases using a FAISS-backed vector store and a generative LLM. The service supports English and Bangla (Bangla queries are auto-translated).
+A FastAPI-based Retrieval-Augmented Generation (RAG) service that answers questions about rice diseases using a FAISS-backed vector store and a local generative LLM via Ollama. The service supports English and Bangla (Bangla queries are auto-translated).
 
-This README gives step-by-step instructions to set up a Python virtual environment, install dependencies, create the FAISS index from CSV files, run the service locally, and run basic tests.
+This README gives step-by-step instructions to set up a Python virtual environment, install dependencies, create the FAISS index from CSV files, install and run Ollama, run the service locally, and run basic tests.
 
 ## Prerequisites
 
 - Python 3.8 or newer
 - Bash (instructions assume a Unix-like shell)
 - Internet access for model downloads and translations
-- An API key for the LLM provider the code uses (see Environment Variables)
+- [Ollama](https://ollama.com/) installed and running locally
 
 ## Dependencies
 
 All Python packages are listed in `requirements.txt`. Key packages include:
 
 - fastapi, uvicorn
-- langchain, langchain-community, langchain-google-genai
+- langchain, langchain-community
 - faiss-cpu, sentence-transformers
 - python-dotenv, pandas, deep-translator, langdetect
 
@@ -225,14 +237,16 @@ All Python packages are listed in `requirements.txt`. Key packages include:
 
 Create a file named `.env` in the `rag_service/` folder (do NOT commit it).
 
-- `GEMINI_API_KEY` — API key for Google Generative AI (the code initializes `ChatGoogleGenerativeAI` and checks this variable).
-- Optionally, if you adapt the code to OpenAI, set `OPENAI_API_KEY`.
+- `OLLAMA_MODEL` — Model name for Ollama (e.g., llama2, phi3)
+- `OLLAMA_HOST` — Host/port for Ollama API (default: 127.0.0.1:11434)
+- `RAG_MODE` — 'auto' (default) or 'retrieval' only mode
 
 Example `.env` (DO NOT commit):
 
 ```env
-GEMINI_API_KEY=your_google_generative_api_key_here
-# OPENAI_API_KEY=sk-your-openai-key-if-applicable
+OLLAMA_MODEL=llama2
+OLLAMA_HOST=127.0.0.1:11434
+RAG_MODE=auto
 ```
 
 ## Setup (recommended quick sequence)
@@ -253,7 +267,11 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-3. Add your LLM API key(s) to `.env` as shown above.
+3. Install and run Ollama:
+
+- Download and install from https://ollama.com/download
+- Start Ollama: `ollama serve` (usually runs automatically)
+- Pull a model: `ollama pull llama2` (or try `phi3` for low-resource)
 
 4. Add or verify that the CSV files used for ingestion are present in `rag_service/`:
 
@@ -321,7 +339,7 @@ python test_api.py
 ## Troubleshooting
 
 - If `FAISS index not found` error appears: run `python ingest.py` to create `faiss_index/`.
-- If LLM initialization fails with missing key: ensure `GEMINI_API_KEY` is in `.env` and loaded (restart the process after changing `.env`).
+- If Ollama returns 500 or fails: ensure Ollama is running, the model is pulled, and try a smaller model if needed. The service will fall back to retrieval-only answers if Ollama fails.
 - If dependencies fail to install: ensure your Python version is >= 3.8 and you have build tools installed (e.g., `build-essential` on Debian/Ubuntu).
 
 ## .gitignore guidance
